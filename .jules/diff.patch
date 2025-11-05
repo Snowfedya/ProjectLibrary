@@ -1,0 +1,2030 @@
+diff --git a/library-api-contract/README.md b/library-api-contract/README.md
+new file mode 100644
+index 0000000..9c403c6
+--- /dev/null
++++ b/library-api-contract/README.md
+@@ -0,0 +1,76 @@
++# Library API Contract
++
++This module contains the OpenAPI 3.0 specification for the Library Management System. It defines the API endpoints, data models, and security requirements for the entire application. The contract-first approach ensures that the API is well-documented and consistent across all services.
++
++## Overview
++
++The Library API provides a comprehensive set of endpoints for managing books, users, and borrowing records. It is designed to support a modern educational library with features for students, teachers, librarians, and administrators.
++
++## User Roles and Permissions
++
++The API defines four user roles with a clear hierarchy of permissions:
++
++-   **MEMBER (Student)**: Can view books, borrow and return up to 5 books for 14 days, and view their own borrowing history.
++-   **TEACHER**: Has all `MEMBER` permissions but with extended limits (10 books, 30 days). Can also create reading lists and supervise student groups.
++-   **LIBRARIAN**: Has all `TEACHER` permissions and can manage the entire book catalog, handle all borrowing records, and manage fines.
++-   **ADMIN**: Has all `LIBRARIAN` permissions plus the ability to manage user accounts and system settings.
++
++## Getting Started
++
++To generate the Java interfaces and DTOs from the OpenAPI specification, run the following Maven command in the root directory:
++
++```bash
++mvn clean install
++```
++
++The generated code will be available in the `target/generated-sources` directory of this module.
++
++## API Usage Examples
++
++### Authentication
++
++**Login:**
++
++```
++POST /api/auth/login
++Content-Type: application/json
++
++{
++  "username": "student_user",
++  "password": "password123"
++}
++```
++
++**Register as a MEMBER:**
++
++```
++POST /api/auth/register
++Content-Type: application/json
++
++{
++  "username": "new_student",
++  "email": "new.student@example.com",
++  "password": "strongpassword",
++  "fullName": "New Student"
++}
++```
++
++### Searching for Books
++
++**Search with filters:**
++
++```
++GET /api/books?q=Java&genre=Programming&availableOnly=true
++```
++
++### Borrowing a Book
++
++```
++POST /api/borrows
++Authorization: Bearer <jwt_token>
++Content-Type: application/json
++
++{
++  "bookId": 123
++}
++```
+diff --git a/library-api-contract/pom.xml b/library-api-contract/pom.xml
+new file mode 100644
+index 0000000..4f45d5d
+--- /dev/null
++++ b/library-api-contract/pom.xml
+@@ -0,0 +1,69 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
++    <modelVersion>4.0.0</modelVersion>
++    <parent>
++        <groupId>org.example</groupId>
++        <artifactId>Library-parent</artifactId>
++        <version>1.0.0-SNAPSHOT</version>
++        <relativePath>../</relativePath>
++    </parent>
++    <artifactId>library-api-contract</artifactId>
++    <name>Library API Contract</name>
++    <description>Library API Contract</description>
++
++    <properties>
++        <openapi-generator-maven-plugin.version>7.1.0</openapi-generator-maven-plugin.version>
++    </properties>
++
++    <dependencies>
++        <dependency>
++            <groupId>org.springframework.boot</groupId>
++            <artifactId>spring-boot-starter-web</artifactId>
++        </dependency>
++        <dependency>
++            <groupId>jakarta.validation</groupId>
++            <artifactId>jakarta.validation-api</artifactId>
++        </dependency>
++        <dependency>
++            <groupId>io.swagger.core.v3</groupId>
++            <artifactId>swagger-annotations-jakarta</artifactId>
++            <version>2.2.8</version>
++        </dependency>
++         <dependency>
++            <groupId>org.openapitools</groupId>
++            <artifactId>jackson-databind-nullable</artifactId>
++            <version>0.2.6</version>
++        </dependency>
++    </dependencies>
++
++    <build>
++        <plugins>
++            <plugin>
++                <groupId>org.openapitools</groupId>
++                <artifactId>openapi-generator-maven-plugin</artifactId>
++                <version>${openapi-generator-maven-plugin.version}</version>
++                <executions>
++                    <execution>
++                        <goals>
++                            <goal>generate</goal>
++                        </goals>
++                        <configuration>
++                            <inputSpec>${project.basedir}/src/main/resources/api/library-api.yaml</inputSpec>
++                            <generatorName>spring</generatorName>
++                            <apiPackage>com.library.api</apiPackage>
++                            <modelPackage>com.library.api.models</modelPackage>
++                            <configOptions>
++                                <useJakartaEe>true</useJakartaEe>
++                                <useBeanValidation>true</useBeanValidation>
++                                <interfaceOnly>true</interfaceOnly>
++                                <skipDefaultInterface>true</skipDefaultInterface>
++                                <openApiNullable>false</openApiNullable>
++                            </configOptions>
++                        </configuration>
++                    </execution>
++                </executions>
++            </plugin>
++        </plugins>
++    </build>
++</project>
+diff --git a/library-api-contract/src/main/resources/api/library-api.yaml b/library-api-contract/src/main/resources/api/library-api.yaml
+new file mode 100644
+index 0000000..73ec85e
+--- /dev/null
++++ b/library-api-contract/src/main/resources/api/library-api.yaml
+@@ -0,0 +1,1196 @@
++openapi: 3.0.3
++info:
++  title: Library Management System API
++  description: |-
++    A comprehensive REST API for managing a modern educational library system.
++    This API provides endpoints for book and user management, a borrowing system,
++    teacher-specific features like reading lists and student supervision,
++    notifications, and system statistics.
++  version: 1.0.0
++servers:
++  - url: http://localhost:8080
++    description: Development server
++tags:
++  - name: Authentication
++    description: User authentication and registration
++  - name: Books
++    description: Book management and search
++  - name: Users
++    description: User profile and role management
++  - name: Borrows
++    description: Borrowing, returning, and renewing books
++  - name: Reading Lists
++    description: Teacher-managed reading lists
++  - name: Groups
++    description: Teacher-supervised student groups
++  - name: Notifications
++    description: User notifications
++  - name: Statistics
++    description: System statistics for librarians
++
++paths:
++  /api/auth/login:
++    post:
++      tags:
++        - Authentication
++      summary: User login
++      operationId: loginUser
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              $ref: '#/components/schemas/LoginRequest'
++      responses:
++        '200':
++          description: Successful login
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/AuthTokens'
++        '400':
++          $ref: '#/components/responses/BadRequest'
++        '401':
++          $ref: '#/components/responses/Unauthorized'
++
++  /api/auth/register:
++    post:
++      tags:
++        - Authentication
++      summary: User self-registration
++      operationId: registerUser
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              $ref: '#/components/schemas/RegisterRequest'
++      responses:
++        '201':
++          description: User created successfully
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/User'
++        '400':
++          $ref: '#/components/responses/BadRequest'
++        '409':
++          $ref: '#/components/responses/Conflict'
++
++  /api/auth/refresh:
++    post:
++      tags:
++        - Authentication
++      summary: Refresh access token
++      operationId: refreshToken
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              type: object
++              properties:
++                refreshToken:
++                  type: string
++      responses:
++        '200':
++          description: Access token refreshed
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/AuthTokens'
++        '401':
++          $ref: '#/components/responses/Unauthorized'
++
++  /api/auth/logout:
++    post:
++      tags:
++        - Authentication
++      summary: User logout
++      operationId: logoutUser
++      security:
++        - bearerAuth: []
++      responses:
++        '204':
++          description: Logout successful
++        '401':
++          $ref: '#/components/responses/Unauthorized'
++
++  /api/books:
++    get:
++      tags:
++        - Books
++      summary: Search and filter books
++      operationId: searchBooks
++      security:
++        - bearerAuth: []
++      parameters:
++        - name: q
++          in: query
++          description: Full-text search query
++          schema:
++            type: string
++        - name: genre
++          in: query
++          style: form
++          explode: true
++          schema:
++            type: array
++            items:
++              type: string
++        - name: subject
++          in: query
++          style: form
++          explode: true
++          schema:
++            type: array
++            items:
++              $ref: '#/components/schemas/Subject'
++        - name: educationalLevel
++          in: query
++          style: form
++          explode: true
++          schema:
++            type: array
++            items:
++              $ref: '#/components/schemas/EducationalLevel'
++        - name: availableOnly
++          in: query
++          schema:
++            type: boolean
++            default: false
++        - name: page
++          in: query
++          schema:
++            type: integer
++            default: 0
++        - name: size
++          in: query
++          schema:
++            type: integer
++            default: 20
++      responses:
++        '200':
++          description: A paginated list of books
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/BookPage'
++        '401':
++          $ref: '#/components/responses/Unauthorized'
++    post:
++      tags:
++        - Books
++      summary: Create a new book
++      operationId: createBook
++      security:
++        - bearerAuth: [LIBRARIAN, ADMIN]
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              $ref: '#/components/schemas/Book'
++      responses:
++        '201':
++          description: Book created
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/Book'
++        '400':
++          $ref: '#/components/responses/BadRequest'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++
++  /api/books/{id}:
++    get:
++      tags:
++        - Books
++      summary: Get book by ID
++      operationId: getBookById
++      security:
++        - bearerAuth: []
++      parameters:
++        - name: id
++          in: path
++          required: true
++          schema:
++            type: integer
++            format: int64
++      responses:
++        '200':
++          description: Book details
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/Book'
++        '404':
++          $ref: '#/components/responses/NotFound'
++    put:
++      tags:
++        - Books
++      summary: Update a book
++      operationId: updateBook
++      security:
++        - bearerAuth: [LIBRARIAN, ADMIN]
++      parameters:
++        - name: id
++          in: path
++          required: true
++          schema:
++            type: integer
++            format: int64
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              $ref: '#/components/schemas/Book'
++      responses:
++        '200':
++          description: Book updated
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/Book'
++        '400':
++          $ref: '#/components/responses/BadRequest'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++        '404':
++          $ref: '#/components/responses/NotFound'
++    delete:
++      tags:
++        - Books
++      summary: Delete a book
++      operationId: deleteBook
++      security:
++        - bearerAuth: [LIBRARIAN, ADMIN]
++      parameters:
++        - name: id
++          in: path
++          required: true
++          schema:
++            type: integer
++            format: int64
++      responses:
++        '204':
++          description: Book deleted
++        '403':
++          $ref: '#/components/responses/Forbidden'
++        '404':
++          $ref: '#/components/responses/NotFound'
++
++  /api/books/{id}/cover:
++    post:
++      tags:
++        - Books
++      summary: Upload a book cover image
++      operationId: uploadBookCover
++      security:
++        - bearerAuth: [LIBRARIAN, ADMIN]
++      parameters:
++        - name: id
++          in: path
++          required: true
++          schema:
++            type: integer
++            format: int64
++      requestBody:
++        required: true
++        content:
++          multipart/form-data:
++            schema:
++              type: object
++              properties:
++                file:
++                  type: string
++                  format: binary
++      responses:
++        '200':
++          description: Cover uploaded
++          content:
++            application/json:
++              schema:
++                type: object
++                properties:
++                  coverImageUrl:
++                    type: string
++                    format: uri
++        '400':
++          $ref: '#/components/responses/BadRequest'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++        '404':
++          $ref: '#/components/responses/NotFound'
++
++  /api/users:
++    get:
++      tags:
++        - Users
++      summary: Get all users
++      operationId: getAllUsers
++      security:
++        - bearerAuth: [ADMIN]
++      parameters:
++        - name: page
++          in: query
++          schema:
++            type: integer
++            default: 0
++        - name: size
++          in: query
++          schema:
++            type: integer
++            default: 20
++      responses:
++        '200':
++          description: A paginated list of users
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/UserPage'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++
++  /api/users/{id}:
++    get:
++      tags:
++        - Users
++      summary: Get user by ID
++      operationId: getUserById
++      security:
++        - bearerAuth: []
++      parameters:
++        - name: id
++          in: path
++          required: true
++          schema:
++            type: integer
++            format: int64
++      responses:
++        '200':
++          description: User details
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/User'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++        '404':
++          $ref: '#/components/responses/NotFound'
++    put:
++      tags:
++        - Users
++      summary: Update user profile
++      operationId: updateUser
++      security:
++        - bearerAuth: []
++      parameters:
++        - name: id
++          in: path
++          required: true
++          schema:
++            type: integer
++            format: int64
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              $ref: '#/components/schemas/User'
++      responses:
++        '200':
++          description: User updated
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/User'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++        '404':
++          $ref: '#/components/responses/NotFound'
++    delete:
++      tags:
++        - Users
++      summary: Delete a user
++      operationId: deleteUser
++      security:
++        - bearerAuth: [ADMIN]
++      parameters:
++        - name: id
++          in: path
++          required: true
++          schema:
++            type: integer
++            format: int64
++      responses:
++        '204':
++          description: User deleted
++        '403':
++          $ref: '#/components/responses/Forbidden'
++        '404':
++          $ref: '#/components/responses/NotFound'
++
++  /api/users/{id}/role:
++    put:
++      tags:
++        - Users
++      summary: Change user role
++      operationId: changeUserRole
++      security:
++        - bearerAuth: [ADMIN]
++      parameters:
++        - name: id
++          in: path
++          required: true
++          schema:
++            type: integer
++            format: int64
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              type: object
++              properties:
++                role:
++                  $ref: '#/components/schemas/Role'
++      responses:
++        '200':
++          description: Role updated
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/User'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++        '404':
++          $ref: '#/components/responses/NotFound'
++
++  /api/users/{id}/borrow-history:
++    get:
++      tags:
++        - Users
++      summary: Get user borrow history
++      operationId: getUserBorrowHistory
++      security:
++        - bearerAuth: []
++      parameters:
++        - name: id
++          in: path
++          required: true
++          schema:
++            type: integer
++            format: int64
++      responses:
++        '200':
++          description: A list of borrow records
++          content:
++            application/json:
++              schema:
++                type: array
++                items:
++                  $ref: '#/components/schemas/BorrowRecord'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++        '404':
++          $ref: '#/components/responses/NotFound'
++
++  /api/users/{teacherId}/supervised-students:
++    get:
++      tags:
++        - Users
++      summary: Get supervised students for a teacher
++      operationId: getSupervisedStudents
++      security:
++        - bearerAuth: [TEACHER, LIBRARIAN, ADMIN]
++      parameters:
++        - name: teacherId
++          in: path
++          required: true
++          schema:
++            type: integer
++            format: int64
++      responses:
++        '200':
++          description: A list of students
++          content:
++            application/json:
++              schema:
++                type: array
++                items:
++                  $ref: '#/components/schemas/User'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++        '404':
++          $ref: '#/components/responses/NotFound'
++
++  /api/borrows:
++    get:
++      tags:
++        - Borrows
++      summary: Get borrow records
++      operationId: getBorrows
++      security:
++        - bearerAuth: []
++      responses:
++        '200':
++          description: A list of borrow records
++          content:
++            application/json:
++              schema:
++                type: array
++                items:
++                  $ref: '#/components/schemas/BorrowRecord'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++    post:
++      tags:
++        - Borrows
++      summary: Borrow a book
++      operationId: borrowBook
++      security:
++        - bearerAuth: []
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              type: object
++              properties:
++                bookId:
++                  type: integer
++                  format: int64
++      responses:
++        '201':
++          description: Book borrowed
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/BorrowRecord'
++        '400':
++          $ref: '#/components/responses/BadRequest'
++        '404':
++          $ref: '#/components/responses/NotFound'
++        '409':
++          $ref: '#/components/responses/Conflict'
++
++  /api/borrows/{id}/return:
++    put:
++      tags:
++        - Borrows
++      summary: Return a borrowed book
++      operationId: returnBook
++      security:
++        - bearerAuth: []
++      parameters:
++        - name: id
++          in: path
++          required: true
++          schema:
++            type: integer
++            format: int64
++      responses:
++        '200':
++          description: Book returned
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/BorrowRecord'
++        '404':
++          $ref: '#/components/responses/NotFound'
++
++  /api/borrows/{id}/renew:
++    put:
++      tags:
++        - Borrows
++      summary: Renew a borrowed book
++      operationId: renewBook
++      security:
++        - bearerAuth: []
++      parameters:
++        - name: id
++          in: path
++          required: true
++          schema:
++            type: integer
++            format: int64
++      responses:
++        '200':
++          description: Book renewed
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/BorrowRecord'
++        '404':
++          $ref: '#/components/responses/NotFound'
++        '409':
++          $ref: '#/components/responses/Conflict'
++
++  /api/borrows/overdue:
++    get:
++      tags:
++        - Borrows
++      summary: Get overdue borrow records
++      operationId: getOverdueBorrows
++      security:
++        - bearerAuth: [LIBRARIAN, ADMIN]
++      responses:
++        '200':
++          description: A list of overdue borrow records
++          content:
++            application/json:
++              schema:
++                type: array
++                items:
++                  $ref: '#/components/schemas/BorrowRecord'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++
++  /api/borrows/by-user/{userId}:
++    get:
++      tags:
++        - Borrows
++      summary: Get borrow records by user ID
++      operationId: getBorrowsByUserId
++      security:
++        - bearerAuth: []
++      parameters:
++        - name: userId
++          in: path
++          required: true
++          schema:
++            type: integer
++            format: int64
++      responses:
++        '200':
++          description: A list of borrow records for the specified user
++          content:
++            application/json:
++              schema:
++                type: array
++                items:
++                  $ref: '#/components/schemas/BorrowRecord'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++        '404':
++          $ref: '#/components/responses/NotFound'
++
++  /api/reading-lists:
++    get:
++      tags:
++        - Reading Lists
++      summary: Get reading lists
++      operationId: getReadingLists
++      security:
++        - bearerAuth: [TEACHER, LIBRARIAN, ADMIN]
++      responses:
++        '200':
++          description: A list of reading lists
++          content:
++            application/json:
++              schema:
++                type: array
++                items:
++                  $ref: '#/components/schemas/ReadingList'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++    post:
++      tags:
++        - Reading Lists
++      summary: Create a reading list
++      operationId: createReadingList
++      security:
++        - bearerAuth: [TEACHER, LIBRARIAN, ADMIN]
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              $ref: '#/components/schemas/ReadingList'
++      responses:
++        '201':
++          description: Reading list created
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/ReadingList'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++
++  /api/reading-lists/{id}:
++    put:
++      tags:
++        - Reading Lists
++      summary: Update a reading list
++      operationId: updateReadingList
++      security:
++        - bearerAuth: [TEACHER, LIBRARIAN, ADMIN]
++      parameters:
++        - name: id
++          in: path
++          required: true
++          schema:
++            type: integer
++            format: int64
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              $ref: '#/components/schemas/ReadingList'
++      responses:
++        '200':
++          description: Reading list updated
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/ReadingList'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++        '404':
++          $ref: '#/components/responses/NotFound'
++    delete:
++      tags:
++        - Reading Lists
++      summary: Delete a reading list
++      operationId: deleteReadingList
++      security:
++        - bearerAuth: [TEACHER, LIBRARIAN, ADMIN]
++      parameters:
++        - name: id
++          in: path
++          required: true
++          schema:
++            type: integer
++            format: int64
++      responses:
++        '204':
++          description: Reading list deleted
++        '403':
++          $ref: '#/components/responses/Forbidden'
++        '404':
++          $ref: '#/components/responses/NotFound'
++
++  /api/reading-lists/{id}/books:
++    get:
++      tags:
++        - Reading Lists
++      summary: Get books in a reading list
++      operationId: getBooksInReadingList
++      security:
++        - bearerAuth: [TEACHER, LIBRARIAN, ADMIN]
++      parameters:
++        - name: id
++          in: path
++          required: true
++          schema:
++            type: integer
++            format: int64
++      responses:
++        '200':
++          description: A list of books
++          content:
++            application/json:
++              schema:
++                type: array
++                items:
++                  $ref: '#/components/schemas/Book'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++        '404':
++          $ref: '#/components/responses/NotFound'
++
++  /api/groups:
++    post:
++      tags:
++        - Groups
++      summary: Create a student group
++      operationId: createGroup
++      security:
++        - bearerAuth: [TEACHER, LIBRARIAN, ADMIN]
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              $ref: '#/components/schemas/UserGroup'
++      responses:
++        '201':
++          description: Group created
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/UserGroup'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++
++  /api/notifications:
++    get:
++      tags:
++        - Notifications
++      summary: Get user notifications
++      operationId: getNotifications
++      security:
++        - bearerAuth: []
++      responses:
++        '200':
++          description: A list of notifications
++          content:
++            application/json:
++              schema:
++                type: array
++                items:
++                  $ref: '#/components/schemas/Notification'
++        '401':
++          $ref: '#/components/responses/Unauthorized'
++
++  /api/notifications/{id}/read:
++    put:
++      tags:
++        - Notifications
++      summary: Mark a notification as read
++      operationId: markNotificationAsRead
++      security:
++        - bearerAuth: []
++      parameters:
++        - name: id
++          in: path
++          required: true
++          schema:
++            type: integer
++            format: int64
++      responses:
++        '204':
++          description: Notification marked as read
++        '401':
++          $ref: '#/components/responses/Unauthorized'
++        '404':
++          $ref: '#/components/responses/NotFound'
++
++  /api/statistics/books:
++    get:
++      tags:
++        - Statistics
++      summary: Get book statistics
++      operationId: getBookStatistics
++      security:
++        - bearerAuth: [LIBRARIAN, ADMIN]
++      responses:
++        '200':
++          description: Book statistics
++          content:
++            application/json:
++              schema:
++                type: object
++        '403':
++          $ref: '#/components/responses/Forbidden'
++
++  /api/statistics/users:
++    get:
++      tags:
++        - Statistics
++      summary: Get user statistics
++      operationId: getUserStatistics
++      security:
++        - bearerAuth: [LIBRARIAN, ADMIN]
++      responses:
++        '200':
++          description: User statistics
++          content:
++            application/json:
++              schema:
++                type: object
++        '403':
++          $ref: '#/components/responses/Forbidden'
++
++  /api/statistics/overdue-summary:
++    get:
++      tags:
++        - Statistics
++      summary: Get overdue summary
++      operationId: getOverdueSummary
++      security:
++        - bearerAuth: [LIBRARIAN, ADMIN]
++      responses:
++        '200':
++          description: Overdue summary
++          content:
++            application/json:
++              schema:
++                type: object
++        '403':
++          $ref: '#/components/responses/Forbidden'
++
++components:
++  securitySchemes:
++    bearerAuth:
++      type: http
++      scheme: bearer
++      bearerFormat: JWT
++  schemas:
++    LoginRequest:
++      type: object
++      properties:
++        username:
++          type: string
++        password:
++          type: string
++    RegisterRequest:
++      type: object
++      properties:
++        username:
++          type: string
++          pattern: "^[a-zA-Z0-9_]{3,50}$"
++        email:
++          type: string
++          format: email
++        password:
++          type: string
++        fullName:
++          type: string
++    AuthTokens:
++      type: object
++      properties:
++        accessToken:
++          type: string
++        refreshToken:
++          type: string
++        expiresIn:
++          type: integer
++          format: int64
++    Book:
++      type: object
++      properties:
++        id:
++          type: integer
++          format: int64
++        title:
++          type: string
++        author:
++          type: string
++        isbn13:
++          type: string
++          pattern: "^978[0-9]{10}$"
++        isbn10:
++          type: string
++          pattern: "^[0-9]{9}[0-9X]$"
++        genre:
++          type: string
++        publicationYear:
++          type: integer
++        quantity:
++          type: integer
++        availableQuantity:
++          type: integer
++        description:
++          type: string
++        coverImageUrl:
++          type: string
++          format: uri
++        publisher:
++          type: string
++        language:
++          type: string
++        pagesCount:
++          type: integer
++        educationalLevel:
++          $ref: '#/components/schemas/EducationalLevel'
++        subject:
++          $ref: '#/components/schemas/Subject'
++    BookPage:
++      type: object
++      properties:
++        content:
++          type: array
++          items:
++            $ref: '#/components/schemas/Book'
++        pageable:
++          type: object
++        totalPages:
++          type: integer
++        totalElements:
++          type: integer
++    User:
++      type: object
++      properties:
++        id:
++          type: integer
++          format: int64
++        username:
++          type: string
++        email:
++          type: string
++          format: email
++        fullName:
++          type: string
++        role:
++          $ref: '#/components/schemas/Role'
++        educationalInstitution:
++          type: string
++        createdAt:
++          type: string
++          format: date-time
++        active:
++          type: boolean
++    UserPage:
++      type: object
++      properties:
++        content:
++          type: array
++          items:
++            $ref: '#/components/schemas/User'
++        pageable:
++          type: object
++        totalPages:
++          type: integer
++        totalElements:
++          type: integer
++    BorrowRecord:
++      type: object
++      properties:
++        id:
++          type: integer
++          format: int64
++        userId:
++          type: integer
++          format: int64
++        bookId:
++          type: integer
++          format: int64
++        borrowDate:
++          type: string
++          format: date-time
++        dueDate:
++          type: string
++          format: date-time
++        returnDate:
++          type: string
++          format: date-time
++        renewed:
++          type: boolean
++        fineAmount:
++          type: integer
++    ReadingList:
++      type: object
++      properties:
++        id:
++          type: integer
++          format: int64
++        teacherId:
++          type: integer
++          format: int64
++        title:
++          type: string
++        description:
++          type: string
++        subject:
++          $ref: '#/components/schemas/Subject'
++        educationalLevel:
++          $ref: '#/components/schemas/EducationalLevel'
++        academicYear:
++          type: string
++        books:
++          type: array
++          items:
++            $ref: '#/components/schemas/Book'
++    UserGroup:
++      type: object
++      properties:
++        id:
++          type: integer
++          format: int64
++        teacherId:
++          type: integer
++          format: int64
++        name:
++          type: string
++        students:
++          type: array
++          items:
++            $ref: '#/components/schemas/User'
++    Notification:
++      type: object
++      properties:
++        id:
++          type: integer
++          format: int64
++        userId:
++          type: integer
++          format: int64
++        message:
++          type: string
++        type:
++          $ref: '#/components/schemas/NotificationType'
++        read:
++          type: boolean
++    Role:
++      type: string
++      enum: [MEMBER, TEACHER, LIBRARIAN, ADMIN]
++    EducationalLevel:
++      type: string
++      enum: [PRIMARY, SECONDARY, HIGHER, PROFESSIONAL]
++    Subject:
++      type: string
++      enum: [MATHEMATICS, LITERATURE, SCIENCE, HISTORY]
++    NotificationType:
++      type: string
++      enum: [DUE_SOON, OVERDUE, RESERVED_AVAILABLE]
++    ErrorResponse:
++      type: object
++      properties:
++        timestamp:
++          type: string
++          format: date-time
++        status:
++          type: integer
++        error:
++          type: string
++        message:
++          type: string
++        path:
++          type: string
++        errorCode:
++          type: integer
++  responses:
++    BadRequest:
++      description: Bad Request
++      content:
++        application/json:
++          schema:
++            $ref: '#/components/schemas/ErrorResponse'
++    Unauthorized:
++      description: Unauthorized
++      content:
++        application/json:
++          schema:
++            $ref: '#/components/schemas/ErrorResponse'
++    Forbidden:
++      description: Forbidden
++      content:
++        application/json:
++          schema:
++            $ref: '#/components/schemas/ErrorResponse'
++    NotFound:
++      description: Not Found
++      content:
++        application/json:
++          schema:
++            $ref: '#/components/schemas/ErrorResponse'
++    Conflict:
++      description: Conflict
++      content:
++        application/json:
++          schema:
++            $ref: '#/components/schemas/ErrorResponse'
++    InternalServerError:
++      description: Internal Server Error
++      content:
++        application/json:
++          schema:
++            $ref: '#/components/schemas/ErrorResponse'
++
++security:
++  - bearerAuth: []
+diff --git a/.mvn/wrapper/maven-wrapper.properties b/library-service/.mvn/wrapper/maven-wrapper.properties
+similarity index 100%
+rename from .mvn/wrapper/maven-wrapper.properties
+rename to library-service/.mvn/wrapper/maven-wrapper.properties
+diff --git a/src/main/java/org/example/library/CodeDumper.java b/library-service/main/java/org/example/library/CodeDumper.java
+similarity index 100%
+rename from src/main/java/org/example/library/CodeDumper.java
+rename to library-service/main/java/org/example/library/CodeDumper.java
+diff --git a/src/main/java/org/example/library/DataInitializer.java b/library-service/main/java/org/example/library/DataInitializer.java
+similarity index 100%
+rename from src/main/java/org/example/library/DataInitializer.java
+rename to library-service/main/java/org/example/library/DataInitializer.java
+diff --git a/src/main/java/org/example/library/LibraryApplication.java b/library-service/main/java/org/example/library/LibraryApplication.java
+similarity index 100%
+rename from src/main/java/org/example/library/LibraryApplication.java
+rename to library-service/main/java/org/example/library/LibraryApplication.java
+diff --git a/src/main/java/org/example/library/config/SecurityConfig.java b/library-service/main/java/org/example/library/config/SecurityConfig.java
+similarity index 100%
+rename from src/main/java/org/example/library/config/SecurityConfig.java
+rename to library-service/main/java/org/example/library/config/SecurityConfig.java
+diff --git a/src/main/java/org/example/library/controllers/AdminController.java b/library-service/main/java/org/example/library/controllers/AdminController.java
+similarity index 100%
+rename from src/main/java/org/example/library/controllers/AdminController.java
+rename to library-service/main/java/org/example/library/controllers/AdminController.java
+diff --git a/src/main/java/org/example/library/controllers/AuthorController.java b/library-service/main/java/org/example/library/controllers/AuthorController.java
+similarity index 100%
+rename from src/main/java/org/example/library/controllers/AuthorController.java
+rename to library-service/main/java/org/example/library/controllers/AuthorController.java
+diff --git a/src/main/java/org/example/library/controllers/BookController.java b/library-service/main/java/org/example/library/controllers/BookController.java
+similarity index 100%
+rename from src/main/java/org/example/library/controllers/BookController.java
+rename to library-service/main/java/org/example/library/controllers/BookController.java
+diff --git a/src/main/java/org/example/library/controllers/FacultyController.java b/library-service/main/java/org/example/library/controllers/FacultyController.java
+similarity index 100%
+rename from src/main/java/org/example/library/controllers/FacultyController.java
+rename to library-service/main/java/org/example/library/controllers/FacultyController.java
+diff --git a/src/main/java/org/example/library/controllers/LibrarianController.java b/library-service/main/java/org/example/library/controllers/LibrarianController.java
+similarity index 100%
+rename from src/main/java/org/example/library/controllers/LibrarianController.java
+rename to library-service/main/java/org/example/library/controllers/LibrarianController.java
+diff --git a/src/main/java/org/example/library/controllers/RatingController.java b/library-service/main/java/org/example/library/controllers/RatingController.java
+similarity index 100%
+rename from src/main/java/org/example/library/controllers/RatingController.java
+rename to library-service/main/java/org/example/library/controllers/RatingController.java
+diff --git a/src/main/java/org/example/library/controllers/RentalRequestController.java b/library-service/main/java/org/example/library/controllers/RentalRequestController.java
+similarity index 100%
+rename from src/main/java/org/example/library/controllers/RentalRequestController.java
+rename to library-service/main/java/org/example/library/controllers/RentalRequestController.java
+diff --git a/src/main/java/org/example/library/controllers/TeacherController.java b/library-service/main/java/org/example/library/controllers/TeacherController.java
+similarity index 100%
+rename from src/main/java/org/example/library/controllers/TeacherController.java
+rename to library-service/main/java/org/example/library/controllers/TeacherController.java
+diff --git a/src/main/java/org/example/library/controllers/UserController.java b/library-service/main/java/org/example/library/controllers/UserController.java
+similarity index 100%
+rename from src/main/java/org/example/library/controllers/UserController.java
+rename to library-service/main/java/org/example/library/controllers/UserController.java
+diff --git a/src/main/java/org/example/library/controllers/ViewController.java b/library-service/main/java/org/example/library/controllers/ViewController.java
+similarity index 100%
+rename from src/main/java/org/example/library/controllers/ViewController.java
+rename to library-service/main/java/org/example/library/controllers/ViewController.java
+diff --git a/src/main/java/org/example/library/exceptions/ForbiddenAccessException.java b/library-service/main/java/org/example/library/exceptions/ForbiddenAccessException.java
+similarity index 100%
+rename from src/main/java/org/example/library/exceptions/ForbiddenAccessException.java
+rename to library-service/main/java/org/example/library/exceptions/ForbiddenAccessException.java
+diff --git a/src/main/java/org/example/library/exceptions/ResourceNotFoundException.java b/library-service/main/java/org/example/library/exceptions/ResourceNotFoundException.java
+similarity index 100%
+rename from src/main/java/org/example/library/exceptions/ResourceNotFoundException.java
+rename to library-service/main/java/org/example/library/exceptions/ResourceNotFoundException.java
+diff --git a/src/main/java/org/example/library/exceptions/UnauthorizedAccessException.java b/library-service/main/java/org/example/library/exceptions/UnauthorizedAccessException.java
+similarity index 100%
+rename from src/main/java/org/example/library/exceptions/UnauthorizedAccessException.java
+rename to library-service/main/java/org/example/library/exceptions/UnauthorizedAccessException.java
+diff --git a/src/main/java/org/example/library/exceptions/UserAlreadyExistsException.java b/library-service/main/java/org/example/library/exceptions/UserAlreadyExistsException.java
+similarity index 100%
+rename from src/main/java/org/example/library/exceptions/UserAlreadyExistsException.java
+rename to library-service/main/java/org/example/library/exceptions/UserAlreadyExistsException.java
+diff --git a/src/main/java/org/example/library/models/Author.java b/library-service/main/java/org/example/library/models/Author.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/Author.java
+rename to library-service/main/java/org/example/library/models/Author.java
+diff --git a/src/main/java/org/example/library/models/Book.java b/library-service/main/java/org/example/library/models/Book.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/Book.java
+rename to library-service/main/java/org/example/library/models/Book.java
+diff --git a/src/main/java/org/example/library/models/BookAccess.java b/library-service/main/java/org/example/library/models/BookAccess.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/BookAccess.java
+rename to library-service/main/java/org/example/library/models/BookAccess.java
+diff --git a/src/main/java/org/example/library/models/BookAccessId.java b/library-service/main/java/org/example/library/models/BookAccessId.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/BookAccessId.java
+rename to library-service/main/java/org/example/library/models/BookAccessId.java
+diff --git a/src/main/java/org/example/library/models/BookAuthor.java b/library-service/main/java/org/example/library/models/BookAuthor.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/BookAuthor.java
+rename to library-service/main/java/org/example/library/models/BookAuthor.java
+diff --git a/src/main/java/org/example/library/models/BookEntry.java b/library-service/main/java/org/example/library/models/BookEntry.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/BookEntry.java
+rename to library-service/main/java/org/example/library/models/BookEntry.java
+diff --git a/src/main/java/org/example/library/models/BookRating.java b/library-service/main/java/org/example/library/models/BookRating.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/BookRating.java
+rename to library-service/main/java/org/example/library/models/BookRating.java
+diff --git a/src/main/java/org/example/library/models/BookStatus.java b/library-service/main/java/org/example/library/models/BookStatus.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/BookStatus.java
+rename to library-service/main/java/org/example/library/models/BookStatus.java
+diff --git a/src/main/java/org/example/library/models/DTO/BookDTO.java b/library-service/main/java/org/example/library/models/DTO/BookDTO.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/DTO/BookDTO.java
+rename to library-service/main/java/org/example/library/models/DTO/BookDTO.java
+diff --git a/src/main/java/org/example/library/models/DTO/PhysicalCopyCreateDto.java b/library-service/main/java/org/example/library/models/DTO/PhysicalCopyCreateDto.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/DTO/PhysicalCopyCreateDto.java
+rename to library-service/main/java/org/example/library/models/DTO/PhysicalCopyCreateDto.java
+diff --git a/src/main/java/org/example/library/models/DTO/PhysicalCopyDTO.java b/library-service/main/java/org/example/library/models/DTO/PhysicalCopyDTO.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/DTO/PhysicalCopyDTO.java
+rename to library-service/main/java/org/example/library/models/DTO/PhysicalCopyDTO.java
+diff --git a/src/main/java/org/example/library/models/DTO/RentalRequestDTO.java b/library-service/main/java/org/example/library/models/DTO/RentalRequestDTO.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/DTO/RentalRequestDTO.java
+rename to library-service/main/java/org/example/library/models/DTO/RentalRequestDTO.java
+diff --git a/src/main/java/org/example/library/models/DTO/UserDTO.java b/library-service/main/java/org/example/library/models/DTO/UserDTO.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/DTO/UserDTO.java
+rename to library-service/main/java/org/example/library/models/DTO/UserDTO.java
+diff --git a/src/main/java/org/example/library/models/DTO/UserLoginDTO.java b/library-service/main/java/org/example/library/models/DTO/UserLoginDTO.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/DTO/UserLoginDTO.java
+rename to library-service/main/java/org/example/library/models/DTO/UserLoginDTO.java
+diff --git a/src/main/java/org/example/library/models/DTO/UserRegistrationDTO.java b/library-service/main/java/org/example/library/models/DTO/UserRegistrationDTO.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/DTO/UserRegistrationDTO.java
+rename to library-service/main/java/org/example/library/models/DTO/UserRegistrationDTO.java
+diff --git a/src/main/java/org/example/library/models/DTO/UserRoleUpdateDTO.java b/library-service/main/java/org/example/library/models/DTO/UserRoleUpdateDTO.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/DTO/UserRoleUpdateDTO.java
+rename to library-service/main/java/org/example/library/models/DTO/UserRoleUpdateDTO.java
+diff --git a/src/main/java/org/example/library/models/Ebook.java b/library-service/main/java/org/example/library/models/Ebook.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/Ebook.java
+rename to library-service/main/java/org/example/library/models/Ebook.java
+diff --git a/src/main/java/org/example/library/models/Faculty.java b/library-service/main/java/org/example/library/models/Faculty.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/Faculty.java
+rename to library-service/main/java/org/example/library/models/Faculty.java
+diff --git a/src/main/java/org/example/library/models/FacultyType.java b/library-service/main/java/org/example/library/models/FacultyType.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/FacultyType.java
+rename to library-service/main/java/org/example/library/models/FacultyType.java
+diff --git a/src/main/java/org/example/library/models/LibraryUser.java b/library-service/main/java/org/example/library/models/LibraryUser.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/LibraryUser.java
+rename to library-service/main/java/org/example/library/models/LibraryUser.java
+diff --git a/src/main/java/org/example/library/models/MyUserDetails.java b/library-service/main/java/org/example/library/models/MyUserDetails.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/MyUserDetails.java
+rename to library-service/main/java/org/example/library/models/MyUserDetails.java
+diff --git a/src/main/java/org/example/library/models/PhysicalCopy.java b/library-service/main/java/org/example/library/models/PhysicalCopy.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/PhysicalCopy.java
+rename to library-service/main/java/org/example/library/models/PhysicalCopy.java
+diff --git a/src/main/java/org/example/library/models/RentalRequest.java b/library-service/main/java/org/example/library/models/RentalRequest.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/RentalRequest.java
+rename to library-service/main/java/org/example/library/models/RentalRequest.java
+diff --git a/src/main/java/org/example/library/models/RentalRequestStatus.java b/library-service/main/java/org/example/library/models/RentalRequestStatus.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/RentalRequestStatus.java
+rename to library-service/main/java/org/example/library/models/RentalRequestStatus.java
+diff --git a/src/main/java/org/example/library/models/Role.java b/library-service/main/java/org/example/library/models/Role.java
+similarity index 100%
+rename from src/main/java/org/example/library/models/Role.java
+rename to library-service/main/java/org/example/library/models/Role.java
+diff --git a/src/main/java/org/example/library/repositories/AuthorRepository.java b/library-service/main/java/org/example/library/repositories/AuthorRepository.java
+similarity index 100%
+rename from src/main/java/org/example/library/repositories/AuthorRepository.java
+rename to library-service/main/java/org/example/library/repositories/AuthorRepository.java
+diff --git a/src/main/java/org/example/library/repositories/BookAccessRepository.java b/library-service/main/java/org/example/library/repositories/BookAccessRepository.java
+similarity index 100%
+rename from src/main/java/org/example/library/repositories/BookAccessRepository.java
+rename to library-service/main/java/org/example/library/repositories/BookAccessRepository.java
+diff --git a/src/main/java/org/example/library/repositories/BookAuthorRepository.java b/library-service/main/java/org/example/library/repositories/BookAuthorRepository.java
+similarity index 100%
+rename from src/main/java/org/example/library/repositories/BookAuthorRepository.java
+rename to library-service/main/java/org/example/library/repositories/BookAuthorRepository.java
+diff --git a/src/main/java/org/example/library/repositories/BookEntryRepository.java b/library-service/main/java/org/example/library/repositories/BookEntryRepository.java
+similarity index 100%
+rename from src/main/java/org/example/library/repositories/BookEntryRepository.java
+rename to library-service/main/java/org/example/library/repositories/BookEntryRepository.java
+diff --git a/src/main/java/org/example/library/repositories/BookRatingRepository.java b/library-service/main/java/org/example/library/repositories/BookRatingRepository.java
+similarity index 100%
+rename from src/main/java/org/example/library/repositories/BookRatingRepository.java
+rename to library-service/main/java/org/example/library/repositories/BookRatingRepository.java
+diff --git a/src/main/java/org/example/library/repositories/BookRepository.java b/library-service/main/java/org/example/library/repositories/BookRepository.java
+similarity index 100%
+rename from src/main/java/org/example/library/repositories/BookRepository.java
+rename to library-service/main/java/org/example/library/repositories/BookRepository.java
+diff --git a/src/main/java/org/example/library/repositories/EbookRepository.java b/library-service/main/java/org/example/library/repositories/EbookRepository.java
+similarity index 100%
+rename from src/main/java/org/example/library/repositories/EbookRepository.java
+rename to library-service/main/java/org/example/library/repositories/EbookRepository.java
+diff --git a/src/main/java/org/example/library/repositories/FacultyRepository.java b/library-service/main/java/org/example/library/repositories/FacultyRepository.java
+similarity index 100%
+rename from src/main/java/org/example/library/repositories/FacultyRepository.java
+rename to library-service/main/java/org/example/library/repositories/FacultyRepository.java
+diff --git a/src/main/java/org/example/library/repositories/LibraryUserRepository.java b/library-service/main/java/org/example/library/repositories/LibraryUserRepository.java
+similarity index 100%
+rename from src/main/java/org/example/library/repositories/LibraryUserRepository.java
+rename to library-service/main/java/org/example/library/repositories/LibraryUserRepository.java
+diff --git a/src/main/java/org/example/library/repositories/PhysicalCopyRepository.java b/library-service/main/java/org/example/library/repositories/PhysicalCopyRepository.java
+similarity index 100%
+rename from src/main/java/org/example/library/repositories/PhysicalCopyRepository.java
+rename to library-service/main/java/org/example/library/repositories/PhysicalCopyRepository.java
+diff --git a/src/main/java/org/example/library/repositories/RentalRequestRepository.java b/library-service/main/java/org/example/library/repositories/RentalRequestRepository.java
+similarity index 100%
+rename from src/main/java/org/example/library/repositories/RentalRequestRepository.java
+rename to library-service/main/java/org/example/library/repositories/RentalRequestRepository.java
+diff --git a/src/main/java/org/example/library/repositories/RoleRepository.java b/library-service/main/java/org/example/library/repositories/RoleRepository.java
+similarity index 100%
+rename from src/main/java/org/example/library/repositories/RoleRepository.java
+rename to library-service/main/java/org/example/library/repositories/RoleRepository.java
+diff --git a/src/main/java/org/example/library/services/AdminService.java b/library-service/main/java/org/example/library/services/AdminService.java
+similarity index 100%
+rename from src/main/java/org/example/library/services/AdminService.java
+rename to library-service/main/java/org/example/library/services/AdminService.java
+diff --git a/src/main/java/org/example/library/services/AuthorService.java b/library-service/main/java/org/example/library/services/AuthorService.java
+similarity index 100%
+rename from src/main/java/org/example/library/services/AuthorService.java
+rename to library-service/main/java/org/example/library/services/AuthorService.java
+diff --git a/src/main/java/org/example/library/services/BookRatingService.java b/library-service/main/java/org/example/library/services/BookRatingService.java
+similarity index 100%
+rename from src/main/java/org/example/library/services/BookRatingService.java
+rename to library-service/main/java/org/example/library/services/BookRatingService.java
+diff --git a/src/main/java/org/example/library/services/BookService.java b/library-service/main/java/org/example/library/services/BookService.java
+similarity index 100%
+rename from src/main/java/org/example/library/services/BookService.java
+rename to library-service/main/java/org/example/library/services/BookService.java
+diff --git a/src/main/java/org/example/library/services/CustomUserDetailsService.java b/library-service/main/java/org/example/library/services/CustomUserDetailsService.java
+similarity index 100%
+rename from src/main/java/org/example/library/services/CustomUserDetailsService.java
+rename to library-service/main/java/org/example/library/services/CustomUserDetailsService.java
+diff --git a/src/main/java/org/example/library/services/FacultyService.java b/library-service/main/java/org/example/library/services/FacultyService.java
+similarity index 100%
+rename from src/main/java/org/example/library/services/FacultyService.java
+rename to library-service/main/java/org/example/library/services/FacultyService.java
+diff --git a/src/main/java/org/example/library/services/LibrarianService.java b/library-service/main/java/org/example/library/services/LibrarianService.java
+similarity index 100%
+rename from src/main/java/org/example/library/services/LibrarianService.java
+rename to library-service/main/java/org/example/library/services/LibrarianService.java
+diff --git a/src/main/java/org/example/library/services/PhysicalCopyService.java b/library-service/main/java/org/example/library/services/PhysicalCopyService.java
+similarity index 100%
+rename from src/main/java/org/example/library/services/PhysicalCopyService.java
+rename to library-service/main/java/org/example/library/services/PhysicalCopyService.java
+diff --git a/src/main/java/org/example/library/services/RentalRequestService.java b/library-service/main/java/org/example/library/services/RentalRequestService.java
+similarity index 100%
+rename from src/main/java/org/example/library/services/RentalRequestService.java
+rename to library-service/main/java/org/example/library/services/RentalRequestService.java
+diff --git a/src/main/java/org/example/library/services/RoleService.java b/library-service/main/java/org/example/library/services/RoleService.java
+similarity index 100%
+rename from src/main/java/org/example/library/services/RoleService.java
+rename to library-service/main/java/org/example/library/services/RoleService.java
+diff --git a/src/main/java/org/example/library/services/UserService.java b/library-service/main/java/org/example/library/services/UserService.java
+similarity index 100%
+rename from src/main/java/org/example/library/services/UserService.java
+rename to library-service/main/java/org/example/library/services/UserService.java
+diff --git a/src/main/resources/application.properties b/library-service/main/resources/application.properties
+similarity index 100%
+rename from src/main/resources/application.properties
+rename to library-service/main/resources/application.properties
+diff --git a/src/main/resources/static/addbook.css b/library-service/main/resources/static/addbook.css
+similarity index 100%
+rename from src/main/resources/static/addbook.css
+rename to library-service/main/resources/static/addbook.css
+diff --git a/src/main/resources/static/admin.css b/library-service/main/resources/static/admin.css
+similarity index 100%
+rename from src/main/resources/static/admin.css
+rename to library-service/main/resources/static/admin.css
+diff --git a/src/main/resources/static/books-edit.css b/library-service/main/resources/static/books-edit.css
+similarity index 100%
+rename from src/main/resources/static/books-edit.css
+rename to library-service/main/resources/static/books-edit.css
+diff --git a/src/main/resources/static/books.css b/library-service/main/resources/static/books.css
+similarity index 100%
+rename from src/main/resources/static/books.css
+rename to library-service/main/resources/static/books.css
+diff --git a/src/main/resources/static/image/1.jpg b/library-service/main/resources/static/image/1.jpg
+similarity index 100%
+rename from src/main/resources/static/image/1.jpg
+rename to library-service/main/resources/static/image/1.jpg
+diff --git a/src/main/resources/static/image/2.jpg b/library-service/main/resources/static/image/2.jpg
+similarity index 100%
+rename from src/main/resources/static/image/2.jpg
+rename to library-service/main/resources/static/image/2.jpg
+diff --git a/src/main/resources/static/image/3.jpg b/library-service/main/resources/static/image/3.jpg
+similarity index 100%
+rename from src/main/resources/static/image/3.jpg
+rename to library-service/main/resources/static/image/3.jpg
+diff --git a/src/main/resources/static/image/4.jpg b/library-service/main/resources/static/image/4.jpg
+similarity index 100%
+rename from src/main/resources/static/image/4.jpg
+rename to library-service/main/resources/static/image/4.jpg
+diff --git a/src/main/resources/static/image/5.jpg b/library-service/main/resources/static/image/5.jpg
+similarity index 100%
+rename from src/main/resources/static/image/5.jpg
+rename to library-service/main/resources/static/image/5.jpg
+diff --git a/src/main/resources/static/image/6.jpg b/library-service/main/resources/static/image/6.jpg
+similarity index 100%
+rename from src/main/resources/static/image/6.jpg
+rename to library-service/main/resources/static/image/6.jpg
+diff --git a/src/main/resources/static/image/7.jpg b/library-service/main/resources/static/image/7.jpg
+similarity index 100%
+rename from src/main/resources/static/image/7.jpg
+rename to library-service/main/resources/static/image/7.jpg
+diff --git a/src/main/resources/static/image/8.jpg b/library-service/main/resources/static/image/8.jpg
+similarity index 100%
+rename from src/main/resources/static/image/8.jpg
+rename to library-service/main/resources/static/image/8.jpg
+diff --git a/src/main/resources/static/index.css b/library-service/main/resources/static/index.css
+similarity index 100%
+rename from src/main/resources/static/index.css
+rename to library-service/main/resources/static/index.css
+diff --git a/src/main/resources/static/login.css b/library-service/main/resources/static/login.css
+similarity index 100%
+rename from src/main/resources/static/login.css
+rename to library-service/main/resources/static/login.css
+diff --git a/src/main/resources/static/navbar.css b/library-service/main/resources/static/navbar.css
+similarity index 100%
+rename from src/main/resources/static/navbar.css
+rename to library-service/main/resources/static/navbar.css
+diff --git a/src/main/resources/static/reader.css b/library-service/main/resources/static/reader.css
+similarity index 100%
+rename from src/main/resources/static/reader.css
+rename to library-service/main/resources/static/reader.css
+diff --git a/src/main/resources/static/register.css b/library-service/main/resources/static/register.css
+similarity index 100%
+rename from src/main/resources/static/register.css
+rename to library-service/main/resources/static/register.css
+diff --git a/src/main/resources/templates/add-physical-copy.html b/library-service/main/resources/templates/add-physical-copy.html
+similarity index 100%
+rename from src/main/resources/templates/add-physical-copy.html
+rename to library-service/main/resources/templates/add-physical-copy.html
+diff --git a/src/main/resources/templates/addbook.html b/library-service/main/resources/templates/addbook.html
+similarity index 100%
+rename from src/main/resources/templates/addbook.html
+rename to library-service/main/resources/templates/addbook.html
+diff --git a/src/main/resources/templates/admin.html b/library-service/main/resources/templates/admin.html
+similarity index 100%
+rename from src/main/resources/templates/admin.html
+rename to library-service/main/resources/templates/admin.html
+diff --git a/src/main/resources/templates/books-edit.html b/library-service/main/resources/templates/books-edit.html
+similarity index 100%
+rename from src/main/resources/templates/books-edit.html
+rename to library-service/main/resources/templates/books-edit.html
+diff --git a/src/main/resources/templates/books.html b/library-service/main/resources/templates/books.html
+similarity index 100%
+rename from src/main/resources/templates/books.html
+rename to library-service/main/resources/templates/books.html
+diff --git a/src/main/resources/templates/bookshelf.html b/library-service/main/resources/templates/bookshelf.html
+similarity index 100%
+rename from src/main/resources/templates/bookshelf.html
+rename to library-service/main/resources/templates/bookshelf.html
+diff --git a/src/main/resources/templates/editbook.html b/library-service/main/resources/templates/editbook.html
+similarity index 100%
+rename from src/main/resources/templates/editbook.html
+rename to library-service/main/resources/templates/editbook.html
+diff --git a/src/main/resources/templates/index.html b/library-service/main/resources/templates/index.html
+similarity index 100%
+rename from src/main/resources/templates/index.html
+rename to library-service/main/resources/templates/index.html
+diff --git a/src/main/resources/templates/librarian-dashboard.html b/library-service/main/resources/templates/librarian-dashboard.html
+similarity index 100%
+rename from src/main/resources/templates/librarian-dashboard.html
+rename to library-service/main/resources/templates/librarian-dashboard.html
+diff --git a/src/main/resources/templates/login.html b/library-service/main/resources/templates/login.html
+similarity index 100%
+rename from src/main/resources/templates/login.html
+rename to library-service/main/resources/templates/login.html
+diff --git a/src/main/resources/templates/my-rentals.html b/library-service/main/resources/templates/my-rentals.html
+similarity index 100%
+rename from src/main/resources/templates/my-rentals.html
+rename to library-service/main/resources/templates/my-rentals.html
+diff --git a/src/main/resources/templates/navbar.html b/library-service/main/resources/templates/navbar.html
+similarity index 100%
+rename from src/main/resources/templates/navbar.html
+rename to library-service/main/resources/templates/navbar.html
+diff --git a/src/main/resources/templates/reader.html b/library-service/main/resources/templates/reader.html
+similarity index 100%
+rename from src/main/resources/templates/reader.html
+rename to library-service/main/resources/templates/reader.html
+diff --git a/src/main/resources/templates/register.html b/library-service/main/resources/templates/register.html
+similarity index 100%
+rename from src/main/resources/templates/register.html
+rename to library-service/main/resources/templates/register.html
+diff --git a/src/main/resources/templates/rent-books.html b/library-service/main/resources/templates/rent-books.html
+similarity index 100%
+rename from src/main/resources/templates/rent-books.html
+rename to library-service/main/resources/templates/rent-books.html
+diff --git a/mvnw b/library-service/mvnw
+similarity index 100%
+rename from mvnw
+rename to library-service/mvnw
+diff --git a/mvnw.cmd b/library-service/mvnw.cmd
+similarity index 100%
+rename from mvnw.cmd
+rename to library-service/mvnw.cmd
+diff --git a/library-service/pom.xml b/library-service/pom.xml
+new file mode 100644
+index 0000000..0e2b00d
+--- /dev/null
++++ b/library-service/pom.xml
+@@ -0,0 +1,113 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
++    <modelVersion>4.0.0</modelVersion>
++    <parent>
++        <groupId>org.example</groupId>
++        <artifactId>Library-parent</artifactId>
++        <version>1.0.0-SNAPSHOT</version>
++        <relativePath>../</relativePath>
++    </parent>
++    <artifactId>library-service</artifactId>
++    <name>Library Service</name>
++    <description>Library Service Implementation</description>
++
++    <dependencies>
++        <dependency>
++            <groupId>org.springframework.boot</groupId>
++            <artifactId>spring-boot-starter-data-jpa</artifactId>
++        </dependency>
++        <dependency>
++            <groupId>org.springframework.boot</groupId>
++            <artifactId>spring-boot-starter-security</artifactId>
++        </dependency>
++        <dependency>
++            <groupId>org.springframework.boot</groupId>
++            <artifactId>spring-boot-starter-thymeleaf</artifactId>
++        </dependency>
++        <dependency>
++            <groupId>org.springframework.boot</groupId>
++            <artifactId>spring-boot-starter-web</artifactId>
++        </dependency>
++        <dependency>
++            <groupId>org.thymeleaf.extras</groupId>
++            <artifactId>thymeleaf-extras-springsecurity6</artifactId>
++        </dependency>
++        <dependency>
++            <groupId>org.springframework.boot</groupId>
++            <artifactId>spring-boot-devtools</artifactId>
++            <scope>runtime</scope>
++            <optional>true</optional>
++        </dependency>
++        <dependency>
++            <groupId>org.postgresql</groupId>
++            <artifactId>postgresql</artifactId>
++            <scope>runtime</scope>
++        </dependency>
++        <dependency>
++            <groupId>org.projectlombok</groupId>
++            <artifactId>lombok</artifactId>
++            <optional>true</optional>
++        </dependency>
++        <dependency>
++            <groupId>org.springframework.boot</groupId>
++            <artifactId>spring-boot-starter-test</artifactId>
++            <scope>test</scope>
++        </dependency>
++        <dependency>
++            <groupId>org.springframework.security</groupId>
++            <artifactId>spring-security-test</artifactId>
++            <scope>test</scope>
++        </dependency>
++        <dependency>
++            <groupId>jakarta.validation</groupId>
++            <artifactId>jakarta.validation-api</artifactId>
++            <version>3.0.0</version>
++        </dependency>
++        <dependency>
++            <groupId>org.hibernate.validator</groupId>
++            <artifactId>hibernate-validator</artifactId>
++            <version>6.2.0.Final</version>
++        </dependency>
++        <dependency>
++            <groupId>org.glassfish</groupId>
++            <artifactId>javax.el</artifactId>
++            <version>3.0.0</version>
++        </dependency>
++        <dependency>
++            <groupId>org.apache.pdfbox</groupId>
++            <artifactId>pdfbox</artifactId>
++            <version>2.0.24</version>
++        </dependency>
++        <dependency>
++            <groupId>jakarta.servlet</groupId>
++            <artifactId>jakarta.servlet-api</artifactId>
++            <version>6.0.0</version>
++            <scope>provided</scope>
++        </dependency>
++        <dependency>
++            <groupId>jakarta.servlet.jsp</groupId>
++            <artifactId>jakarta.servlet.jsp-api</artifactId>
++            <version>3.1.1</version>
++            <scope>provided</scope>
++        </dependency>
++    </dependencies>
++
++    <build>
++        <plugins>
++            <plugin>
++                <groupId>org.springframework.boot</groupId>
++                <artifactId>spring-boot-maven-plugin</artifactId>
++                <configuration>
++                    <excludes>
++                        <exclude>
++                            <groupId>org.projectlombok</groupId>
++                            <artifactId>lombok</artifactId>
++                        </exclude>
++                    </excludes>
++                </configuration>
++            </plugin>
++        </plugins>
++    </build>
++
++</project>
+diff --git a/src/test/java/org/example/library/LibraryApplicationTests.java b/library-service/test/java/org/example/library/LibraryApplicationTests.java
+similarity index 100%
+rename from src/test/java/org/example/library/LibraryApplicationTests.java
+rename to library-service/test/java/org/example/library/LibraryApplicationTests.java
+diff --git a/pom.xml b/pom.xml
+index 75a36ee..c67059d 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -9,123 +9,19 @@
+         <relativePath/> <!-- lookup parent from repository -->
+     </parent>
+     <groupId>org.example</groupId>
+-    <artifactId>Library</artifactId>
++    <artifactId>Library-parent</artifactId>
+     <version>1.0.0-SNAPSHOT</version>
+-    <name>Library</name>
+-    <description>Library</description>
+-    <url/>
+-    <licenses>
+-        <license/>
+-    </licenses>
+-    <developers>
+-        <developer/>
+-    </developers>
+-    <scm>
+-        <connection/>
+-        <developerConnection/>
+-        <tag/>
+-        <url/>
+-    </scm>
++    <packaging>pom</packaging>
++    <name>Library Parent</name>
++    <description>Parent project for the Library Management System</description>
++
++    <modules>
++        <module>library-api-contract</module>
++        <module>library-service</module>
++    </modules>
++
+     <properties>
+-        <java.version>23</java.version>
++        <java.version>21</java.version>
+     </properties>
+-    <dependencies>
+-        <dependency>
+-            <groupId>org.springframework.boot</groupId>
+-            <artifactId>spring-boot-starter-data-jpa</artifactId>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.springframework.boot</groupId>
+-            <artifactId>spring-boot-starter-security</artifactId>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.springframework.boot</groupId>
+-            <artifactId>spring-boot-starter-thymeleaf</artifactId>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.springframework.boot</groupId>
+-            <artifactId>spring-boot-starter-web</artifactId>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.thymeleaf.extras</groupId>
+-            <artifactId>thymeleaf-extras-springsecurity6</artifactId>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.springframework.boot</groupId>
+-            <artifactId>spring-boot-devtools</artifactId>
+-            <scope>runtime</scope>
+-            <optional>true</optional>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.postgresql</groupId>
+-            <artifactId>postgresql</artifactId>
+-            <scope>runtime</scope>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.projectlombok</groupId>
+-            <artifactId>lombok</artifactId>
+-            <optional>true</optional>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.springframework.boot</groupId>
+-            <artifactId>spring-boot-starter-test</artifactId>
+-            <scope>test</scope>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.springframework.security</groupId>
+-            <artifactId>spring-security-test</artifactId>
+-            <scope>test</scope>
+-        </dependency>
+-        <!-- Добавленные зависимости для валидации -->
+-        <dependency>
+-            <groupId>jakarta.validation</groupId>
+-            <artifactId>jakarta.validation-api</artifactId>
+-            <version>3.0.0</version>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.hibernate.validator</groupId>
+-            <artifactId>hibernate-validator</artifactId>
+-            <version>6.2.0.Final</version>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.glassfish</groupId>
+-            <artifactId>javax.el</artifactId>
+-            <version>3.0.0</version>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.apache.pdfbox</groupId>
+-            <artifactId>pdfbox</artifactId>
+-            <version>2.0.24</version> <!-- Проверьте наличие последней версии -->
+-        </dependency>
+-        <dependency>
+-            <groupId>jakarta.servlet</groupId>
+-            <artifactId>jakarta.servlet-api</artifactId>
+-            <version>6.0.0</version>
+-            <scope>provided</scope>
+-        </dependency>
+-        <dependency>
+-            <groupId>jakarta.servlet.jsp</groupId>
+-            <artifactId>jakarta.servlet.jsp-api</artifactId>
+-            <version>3.1.1</version>
+-            <scope>provided</scope>
+-        </dependency>
+-    </dependencies>
+-
+-    <build>
+-        <plugins>
+-            <plugin>
+-                <groupId>org.springframework.boot</groupId>
+-                <artifactId>spring-boot-maven-plugin</artifactId>
+-                <configuration>
+-                    <excludes>
+-                        <exclude>
+-                            <groupId>org.projectlombok</groupId>
+-                            <artifactId>lombok</artifactId>
+-                        </exclude>
+-                    </excludes>
+-                </configuration>
+-            </plugin>
+-        </plugins>
+-    </build>
+ 
+ </project>
+
