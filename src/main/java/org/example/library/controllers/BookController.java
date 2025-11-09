@@ -4,7 +4,9 @@ import jakarta.persistence.EntityNotFoundException;
 import org.example.library.exceptions.ForbiddenAccessException;
 import org.example.library.exceptions.ResourceNotFoundException;
 import org.example.library.exceptions.UnauthorizedAccessException;
+import org.example.library.controllers.assemblers.BookResponseAssembler;
 import org.example.library.models.DTO.BookDTO;
+import org.example.library.models.DTO.BookResponse;
 import org.example.library.models.*;
 import org.example.library.services.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +16,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PagedResourcesAssembler;
+import org.springframework.hateoas.PagedModel;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -37,31 +41,36 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/books")
 public class BookController {
 
-    @Autowired
-    private BookService bookService;
+    private final BookService bookService;
+    private final AuthorService authorService;
+    private final UserService userService;
+    private final FacultyService facultyService;
+    private final CustomUserDetailsService customUserDetailsService;
+    private final BookResponseAssembler bookResponseAssembler;
+    private final PagedResourcesAssembler<Book> pagedResourcesAssembler;
 
     @Autowired
-    private AuthorService authorService;
+    public BookController(BookService bookService, AuthorService authorService, UserService userService,
+                          FacultyService facultyService, CustomUserDetailsService customUserDetailsService,
+                          BookResponseAssembler bookResponseAssembler, PagedResourcesAssembler<Book> pagedResourcesAssembler) {
+        this.bookService = bookService;
+        this.authorService = authorService;
+        this.userService = userService;
+        this.facultyService = facultyService;
+        this.customUserDetailsService = customUserDetailsService;
+        this.bookResponseAssembler = bookResponseAssembler;
+        this.pagedResourcesAssembler = pagedResourcesAssembler;
+    }
 
-    @Autowired
-    private UserService userService;
-
-    @Autowired
-    private FacultyService facultyService; // Сервис для работы с факультетами
-
-    @Autowired
-    private CustomUserDetailsService customUserDetailsService;  // Внедрение зависимости
-
-
-    // Получение всех книг
     @GetMapping("/search")
-    public ResponseEntity<Page<BookDTO>> searchBooks(
+    public ResponseEntity<PagedModel<BookResponse>> searchBooks(
             @RequestParam(required = false) String query,
             @RequestParam(required = false) Double minRating,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
         Page<Book> books;
+        Pageable pageable = PageRequest.of(page, size);
 
         if (query != null && !query.isEmpty()) {
             books = bookService.searchBooks(query, page, size);
@@ -69,65 +78,52 @@ public class BookController {
             books = bookService.getAllBooks(page, size);
         }
 
-        List<Book> filteredBooks = books.getContent();
-
         if (minRating != null) {
-            filteredBooks = filteredBooks.stream()
+            List<Book> filteredBooks = books.getContent().stream()
                     .filter(book -> bookService.calculateAverageRating(book.getBookId()) >= minRating)
                     .toList();
+            books = new PageImpl<>(filteredBooks, pageable, filteredBooks.size());
         }
 
         Long currentUserId = customUserDetailsService.getCurrentUser() != null
                 ? customUserDetailsService.getCurrentUser().getId()
                 : null;
 
-        List<BookDTO> dtos = filteredBooks.stream()
-                .map(book -> bookService.convertToDTO(book, currentUserId))
-                .toList();
-
-        Page<BookDTO> bookDTOs = new PageImpl<>(dtos, books.getPageable(), filteredBooks.size());
-
-        return ResponseEntity.ok(bookDTOs);
+        PagedModel<BookResponse> pagedModel = pagedResourcesAssembler.toModel(books, book -> bookResponseAssembler.toModel(book, currentUserId));
+        return ResponseEntity.ok(pagedModel);
     }
 
     @GetMapping("/all")
-    public ResponseEntity<Page<BookDTO>> getAllBooks(
+    public ResponseEntity<PagedModel<BookResponse>> getAllBooks(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
         Page<Book> books = bookService.getAllBooks(page, size);
-
         Long currentUserId = customUserDetailsService.getCurrentUser() != null
                 ? customUserDetailsService.getCurrentUser().getId()
                 : null;
 
-        List<BookDTO> dtos = books.stream()
-                .map(book -> bookService.convertToDTO(book, currentUserId))
-                .toList();
-
-        Page<BookDTO> bookDTOs = new PageImpl<>(dtos, books.getPageable(), books.getTotalElements());
-
-        return ResponseEntity.ok(bookDTOs);
+        PagedModel<BookResponse> pagedModel = pagedResourcesAssembler.toModel(books, book -> bookResponseAssembler.toModel(book, currentUserId));
+        return ResponseEntity.ok(pagedModel);
     }
 
     @GetMapping("/editable")
-    public ResponseEntity<Page<BookDTO>> getEditableBooks(@RequestParam Long userId,
-                                                          @RequestParam(required = false) String query,
-                                                          @RequestParam(defaultValue = "0") int page,
-                                                          @RequestParam(defaultValue = "10") int size) {
+    public ResponseEntity<PagedModel<BookResponse>> getEditableBooks(@RequestParam Long userId,
+                                                                      @RequestParam(required = false) String query,
+                                                                      @RequestParam(defaultValue = "0") int page,
+                                                                      @RequestParam(defaultValue = "10") int size) {
         LibraryUser currentUser = customUserDetailsService.getUserById(userId);
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         Pageable pageable = PageRequest.of(page, size);
         Page<Book> books = bookService.getBooksForEditing(currentUser, query, pageable);
-        return ResponseEntity.ok(books.map(book -> bookService.convertToDTO(book, userId)));
+        PagedModel<BookResponse> pagedModel = pagedResourcesAssembler.toModel(books, book -> bookResponseAssembler.toModel(book, userId));
+        return ResponseEntity.ok(pagedModel);
     }
 
-
-    // Получение книги по ID
     @GetMapping("/{id}")
-    public ResponseEntity<BookDTO> getBookById(@PathVariable Long id) {
+    public ResponseEntity<BookResponse> getBookById(@PathVariable Long id) {
         Book book = bookService.getBookById(id);
         if (book == null) {
             return ResponseEntity.notFound().build();
@@ -135,7 +131,8 @@ public class BookController {
         Long currentUserId = customUserDetailsService.getCurrentUser() != null
                 ? customUserDetailsService.getCurrentUser().getId()
                 : null;
-        return ResponseEntity.ok(bookService.convertToDTO(book, currentUserId));
+        BookResponse response = bookResponseAssembler.toModel(book, currentUserId);
+        return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{id}")
@@ -313,46 +310,42 @@ public class BookController {
 
 
     @GetMapping("/user/{userId}")
-    public ResponseEntity<Page<BookDTO>> getBooksForUser  (
+    public ResponseEntity<Page<BookDTO>> getBooksForUser(
             @PathVariable Long userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String filter,
             @RequestParam(required = false, defaultValue = "title") String sort,
             @RequestParam(required = false, defaultValue = "asc") String direction,
-            @RequestParam(required = false) Integer minRating) { // Добавляем параметр minRating
+            @RequestParam(required = false) Integer minRating) {
 
-        LibraryUser  user = userService.findById(userId);
+        LibraryUser user = userService.findById(userId);
         if (user == null) {
             return ResponseEntity.notFound().build();
         }
 
-        List<BookDTO> bookDTOs = bookService.getBooksForUser (user);
+        List<BookDTO> bookDTOs = bookService.getBooksForUser(user);
 
-        // Фильтрация по названию и авторам
         if (filter != null && !filter.isEmpty()) {
             String lowerCaseFilter = filter.toLowerCase();
             bookDTOs = bookDTOs.stream().filter(bookDTO ->
                     bookDTO.getTitle().toLowerCase().contains(lowerCaseFilter) ||
                             bookDTO.getAuthorNames().stream()
-                                    .map(String::toLowerCase) // Приведение к нижнему регистру
+                                    .map(String::toLowerCase)
                                     .anyMatch(authorName -> authorName.contains(lowerCaseFilter))
             ).collect(Collectors.toList());
         }
 
-        // Фильтрация по рейтингу
         if (minRating != null) {
             bookDTOs = bookDTOs.stream()
                     .filter(bookDTO -> bookDTO.getAverageRating() >= minRating)
                     .collect(Collectors.toList());
         }
 
-        // Сортировка
         Comparator<BookDTO> comparator = switch (sort) {
             case "year" -> Comparator.comparing(BookDTO::getPublicationYear);
             case "title" -> Comparator.comparing(BookDTO::getTitle, String.CASE_INSENSITIVE_ORDER);
-            case "author" -> Comparator.comparing(bookDTO ->
-                    String.join(", ", bookDTO.getAuthorNames()), String.CASE_INSENSITIVE_ORDER);
+            case "author" -> Comparator.comparing(bookDTO -> String.join(", ", bookDTO.getAuthorNames()), String.CASE_INSENSITIVE_ORDER);
             case "publisher" -> Comparator.comparing(BookDTO::getPublisher, String.CASE_INSENSITIVE_ORDER);
             default -> Comparator.comparing(BookDTO::getTitle, String.CASE_INSENSITIVE_ORDER);
         };
@@ -360,10 +353,8 @@ public class BookController {
         if ("desc".equalsIgnoreCase(direction)) {
             comparator = comparator.reversed();
         }
-
         bookDTOs.sort(comparator);
 
-        // Пагинация
         int start = (int) PageRequest.of(page, size).getOffset();
         int end = Math.min(start + size, bookDTOs.size());
         Page<BookDTO> bookPage = new PageImpl<>(bookDTOs.subList(start, end), PageRequest.of(page, size), bookDTOs.size());
@@ -371,19 +362,19 @@ public class BookController {
         return ResponseEntity.ok(bookPage);
     }
 
-
-
-
-
     @GetMapping("/edit/{id}")
-    public ResponseEntity<BookDTO> editBook(@PathVariable Long id) {
-        Long currentUserId = customUserDetailsService.getCurrentUser () != null
-                ? customUserDetailsService.getCurrentUser ().getId()
-            : null;
+    public ResponseEntity<BookResponse> editBook(@PathVariable Long id) {
+        Long currentUserId = customUserDetailsService.getCurrentUser() != null
+                ? customUserDetailsService.getCurrentUser().getId()
+                : null;
 
         try {
-            BookDTO bookDTO = bookService.editBook(id, currentUserId);
-            return ResponseEntity.ok(bookDTO);
+            Book book = bookService.getBookById(id);
+            if (book == null) {
+                return ResponseEntity.notFound().build();
+            }
+            BookResponse response = bookResponseAssembler.toModel(book, currentUserId);
+            return ResponseEntity.ok(response);
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (UnauthorizedAccessException | ForbiddenAccessException e) {
@@ -498,28 +489,21 @@ public class BookController {
 
 
     @GetMapping("/user/{userId}/last-read")
-    public ResponseEntity<BookDTO> getLastReadBook(@PathVariable Long userId) {
+    public ResponseEntity<BookResponse> getLastReadBook(@PathVariable Long userId) {
         LibraryUser user = userService.findById(userId);
-        Book lastReadBook = user.getLastReadBook();
-        if (lastReadBook == null) {
+        if (user == null || user.getLastReadBook() == null) {
             return ResponseEntity.noContent().build();
         }
-        Book book = bookService.getBookById(lastReadBook.getBookId());
-        if (book == null) {
-            return ResponseEntity.noContent().build();
-        }
-
-
+        Book book = user.getLastReadBook();
         Long currentUserId = customUserDetailsService.getCurrentUser() != null
                 ? customUserDetailsService.getCurrentUser().getId()
                 : null;
-
-        return ResponseEntity.ok(bookService.convertToDTO(book, currentUserId));
+        BookResponse response = bookResponseAssembler.toModel(book, currentUserId);
+        return ResponseEntity.ok(response);
     }
 
-
     @GetMapping("/by-author/{authorId}")
-    public ResponseEntity<Page<BookDTO>> getBooksByAuthor(
+    public ResponseEntity<PagedModel<BookResponse>> getBooksByAuthor(
             @PathVariable Long authorId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
@@ -528,13 +512,8 @@ public class BookController {
         Long currentUserId = customUserDetailsService.getCurrentUser() != null
                 ? customUserDetailsService.getCurrentUser().getId()
                 : null;
-
-        List<BookDTO> dtos = books.stream()
-                .map(book -> bookService.convertToDTO(book, currentUserId))
-                .toList();
-
-        Page<BookDTO> bookDTOs = new PageImpl<>(dtos, books.getPageable(), books.getTotalElements());
-        return ResponseEntity.ok(bookDTOs);
+        PagedModel<BookResponse> pagedModel = pagedResourcesAssembler.toModel(books, book -> bookResponseAssembler.toModel(book, currentUserId));
+        return ResponseEntity.ok(pagedModel);
     }
 
 }
