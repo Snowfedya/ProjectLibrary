@@ -19,6 +19,10 @@ public class MyUserDetails implements UserDetails {
         return libraryUser.getUserId();
     }
 
+    public LibraryUser getLibraryUser() {
+        return libraryUser;
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return libraryUser .getRoles().stream()

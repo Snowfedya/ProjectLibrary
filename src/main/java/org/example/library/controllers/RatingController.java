@@ -36,7 +36,8 @@ public class RatingController {
         }
     }
 
-
-
-
+    @GetMapping("/book/{bookId}")
+    public ResponseEntity<?> getRatingsForBook(@PathVariable Long bookId) {
+        return ResponseEntity.ok(Collections.emptyList());
+    }
 }

@@ -135,4 +135,9 @@ public class AdminController {
         adminService.updateUserRoles(updates);
         return ResponseEntity.ok().build();
     }
+
+    @GetMapping("/authors")
+    public ResponseEntity<?> getAuthorsByBookId(@RequestParam Long bookId) {
+        return ResponseEntity.ok(Collections.emptyList());
+    }
 }
