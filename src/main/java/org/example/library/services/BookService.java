@@ -302,8 +302,7 @@ public class BookService {
                 book.getStatus().name(),
                 authorNames,
                 calculateAverageRating(book.getBookId()),
-                getUserRating(book.getBookId(), currentUserId),
-                addedById
+                getUserRating(book.getBookId(), currentUserId)
         );
     }
 

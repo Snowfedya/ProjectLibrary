@@ -1,6 +1,7 @@
 package org.example.library.controllers;
 
 import jakarta.persistence.EntityNotFoundException;
+import org.example.library.controllers.assemblers.BookDtoAssembler;
 import org.example.library.exceptions.ForbiddenAccessException;
 import org.example.library.exceptions.ResourceNotFoundException;
 import org.example.library.exceptions.UnauthorizedAccessException;
@@ -14,6 +15,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PagedResourcesAssembler;
+import org.springframework.hateoas.PagedModel;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -37,25 +40,31 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/books")
 public class BookController {
 
-    @Autowired
-    private BookService bookService;
+    private final BookService bookService;
+    private final AuthorService authorService;
+    private final UserService userService;
+    private final FacultyService facultyService;
+    private final CustomUserDetailsService customUserDetailsService;
+    private final BookDtoAssembler bookDtoAssembler;
+    private final PagedResourcesAssembler<Book> pagedResourcesAssembler;
 
     @Autowired
-    private AuthorService authorService;
-
-    @Autowired
-    private UserService userService;
-
-    @Autowired
-    private FacultyService facultyService; // Сервис для работы с факультетами
-
-    @Autowired
-    private CustomUserDetailsService customUserDetailsService;  // Внедрение зависимости
+    public BookController(BookService bookService, AuthorService authorService, UserService userService,
+                          FacultyService facultyService, CustomUserDetailsService customUserDetailsService,
+                          BookDtoAssembler bookDtoAssembler, PagedResourcesAssembler<Book> pagedResourcesAssembler) {
+        this.bookService = bookService;
+        this.authorService = authorService;
+        this.userService = userService;
+        this.facultyService = facultyService;
+        this.customUserDetailsService = customUserDetailsService;
+        this.bookDtoAssembler = bookDtoAssembler;
+        this.pagedResourcesAssembler = pagedResourcesAssembler;
+    }
 
 
     // Получение всех книг
     @GetMapping("/search")
-    public ResponseEntity<Page<BookDTO>> searchBooks(
+    public ResponseEntity<PagedModel<BookDTO>> searchBooks(
             @RequestParam(required = false) String query,
             @RequestParam(required = false) Double minRating,
             @RequestParam(defaultValue = "0") int page,
@@ -77,51 +86,34 @@ public class BookController {
                     .toList();
         }
 
-        Long currentUserId = customUserDetailsService.getCurrentUser() != null
-                ? customUserDetailsService.getCurrentUser().getId()
-                : null;
+        Page<Book> filteredPage = new PageImpl<>(filteredBooks, books.getPageable(), books.getTotalElements());
+        PagedModel<BookDTO> pagedModel = pagedResourcesAssembler.toModel(filteredPage, bookDtoAssembler);
 
-        List<BookDTO> dtos = filteredBooks.stream()
-                .map(book -> bookService.convertToDTO(book, currentUserId))
-                .toList();
-
-        Page<BookDTO> bookDTOs = new PageImpl<>(dtos, books.getPageable(), filteredBooks.size());
-
-        return ResponseEntity.ok(bookDTOs);
+        return ResponseEntity.ok(pagedModel);
     }
 
     @GetMapping("/all")
-    public ResponseEntity<Page<BookDTO>> getAllBooks(
+    public ResponseEntity<PagedModel<BookDTO>> getAllBooks(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
         Page<Book> books = bookService.getAllBooks(page, size);
-
-        Long currentUserId = customUserDetailsService.getCurrentUser() != null
-                ? customUserDetailsService.getCurrentUser().getId()
-                : null;
-
-        List<BookDTO> dtos = books.stream()
-                .map(book -> bookService.convertToDTO(book, currentUserId))
-                .toList();
-
-        Page<BookDTO> bookDTOs = new PageImpl<>(dtos, books.getPageable(), books.getTotalElements());
-
-        return ResponseEntity.ok(bookDTOs);
+        PagedModel<BookDTO> pagedModel = pagedResourcesAssembler.toModel(books, bookDtoAssembler);
+        return ResponseEntity.ok(pagedModel);
     }
 
     @GetMapping("/editable")
-    public ResponseEntity<Page<BookDTO>> getEditableBooks(@RequestParam Long userId,
-                                                          @RequestParam(required = false) String query,
-                                                          @RequestParam(defaultValue = "0") int page,
-                                                          @RequestParam(defaultValue = "10") int size) {
+    public ResponseEntity<PagedModel<BookDTO>> getEditableBooks(@RequestParam Long userId,
+                                                                 @RequestParam(required = false) String query,
+                                                                 @RequestParam(defaultValue = "0") int page,
+                                                                 @RequestParam(defaultValue = "10") int size) {
         LibraryUser currentUser = customUserDetailsService.getUserById(userId);
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         Pageable pageable = PageRequest.of(page, size);
         Page<Book> books = bookService.getBooksForEditing(currentUser, query, pageable);
-        return ResponseEntity.ok(books.map(book -> bookService.convertToDTO(book, userId)));
+        return ResponseEntity.ok(pagedResourcesAssembler.toModel(books, bookDtoAssembler));
     }
 
 
@@ -132,10 +124,7 @@ public class BookController {
         if (book == null) {
             return ResponseEntity.notFound().build();
         }
-        Long currentUserId = customUserDetailsService.getCurrentUser() != null
-                ? customUserDetailsService.getCurrentUser().getId()
-                : null;
-        return ResponseEntity.ok(bookService.convertToDTO(book, currentUserId));
+        return ResponseEntity.ok(bookDtoAssembler.toModel(book));
     }
 
     @DeleteMapping("/{id}")
