@@ -21,7 +21,7 @@ import jakarta.annotation.Generated;
  * UserGroup
  */
 
-@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2025-11-05T21:20:19.639692599+03:00[Europe/Moscow]")
+@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2025-11-10T21:02:26.062995258+03:00[Europe/Moscow]")
 public class UserGroup {
 
   private Long id;
