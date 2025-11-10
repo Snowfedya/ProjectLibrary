@@ -18,8 +18,8 @@ org/example/library/models/Book.class
 org/example/library/models/Ebook.class
 org/example/library/models/RentalRequestStatus.class
 org/example/library/repositories/PhysicalCopyRepository.class
-org/example/library/models/DTO/UserRoleUpdateDTO.class
 org/example/library/repositories/RentalRequestRepository.class
+org/example/library/models/DTO/UserRoleUpdateDTO.class
 org/example/library/controllers/ViewController.class
 org/example/library/controllers/AdminController.class
 org/example/library/models/DTO/UserDTO.class
@@ -33,8 +33,8 @@ org/example/library/models/LibraryUser.class
 org/example/library/repositories/BookAuthorRepository.class
 org/example/library/models/DTO/BookDTO.class
 org/example/library/controllers/AdminController$1.class
-org/example/library/models/Role.class
 org/example/library/models/BookRating.class
+org/example/library/models/Role.class
 org/example/library/controllers/LibrarianController.class
 org/example/library/models/BookAuthor.class
 org/example/library/models/Author.class
@@ -58,8 +58,8 @@ org/example/library/models/FacultyType.class
 org/example/library/models/DTO/UserRegistrationDTO.class
 org/example/library/controllers/BookController.class
 org/example/library/models/DTO/RentalRequestDTO.class
-org/example/library/models/BookAccessId.class
 org/example/library/services/AdminService.class
+org/example/library/models/BookAccessId.class
 org/example/library/models/PhysicalCopy.class
 org/example/library/services/FacultyService.class
 org/example/library/exceptions/UserAlreadyExistsException.class

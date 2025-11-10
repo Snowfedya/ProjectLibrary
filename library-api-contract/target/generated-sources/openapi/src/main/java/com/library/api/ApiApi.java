@@ -49,7 +49,7 @@ import java.util.Map;
 import java.util.Optional;
 import jakarta.annotation.Generated;
 
-@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2025-11-10T21:02:26.062995258+03:00[Europe/Moscow]")
+@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2025-11-10T22:36:35.267612671+03:00[Europe/Moscow]")
 @Validated
 @Tag(name = "Borrows", description = "Borrowing, returning, and renewing books")
 public interface ApiApi {
