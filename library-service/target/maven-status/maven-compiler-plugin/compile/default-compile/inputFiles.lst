@@ -48,6 +48,7 @@
 /home/snow/Projects/ProjectLibrary/library-service/src/main/java/org/example/library/services/FacultyService.java
 /home/snow/Projects/ProjectLibrary/library-service/src/main/java/org/example/library/models/RentalRequest.java
 /home/snow/Projects/ProjectLibrary/library-service/src/main/java/org/example/library/services/RentalRequestService.java
+/home/snow/Projects/ProjectLibrary/library-service/src/main/java/org/example/library/services/MetricsService.java
 /home/snow/Projects/ProjectLibrary/library-service/src/main/java/org/example/library/models/Author.java
 /home/snow/Projects/ProjectLibrary/library-service/src/main/java/org/example/library/models/BookAuthor.java
 /home/snow/Projects/ProjectLibrary/library-service/src/main/java/org/example/library/models/BookEntry.java
@@ -64,3 +65,4 @@
 /home/snow/Projects/ProjectLibrary/library-service/src/main/java/org/example/library/controllers/AdminController.java
 /home/snow/Projects/ProjectLibrary/library-service/src/main/java/org/example/library/models/DTO/UserDTO.java
 /home/snow/Projects/ProjectLibrary/library-service/src/main/java/org/example/library/exceptions/ResourceNotFoundException.java
+/home/snow/Projects/ProjectLibrary/library-service/src/main/java/org/example/library/config/MetricsConfig.java

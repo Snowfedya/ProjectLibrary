@@ -24,7 +24,7 @@ import jakarta.annotation.Generated;
  * ReadingList
  */
 
-@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2025-11-10T22:36:35.267612671+03:00[Europe/Moscow]")
+@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2025-11-12T00:16:50.186884498+03:00[Europe/Moscow]")
 public class ReadingList {
 
   private Long id;

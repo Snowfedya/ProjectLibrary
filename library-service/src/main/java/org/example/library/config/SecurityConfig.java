@@ -29,6 +29,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/users/register", "/api/users/login", "/", "/register", "/login").permitAll()
                         .requestMatchers("/*.css").permitAll()
                         .requestMatchers("/image/**").permitAll()
+                        .requestMatchers("/actuator/**").permitAll()  // Разрешаем доступ к актуатору
+                        .requestMatchers("/h2-console/**").permitAll()  // Разрешаем доступ к H2 консоли
+                        .requestMatchers("/api/books/search", "/api/books/all").permitAll()  // Разрешаем публичный поиск
                         .requestMatchers("/api/books/user/**").authenticated()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/teacher/**").hasRole("TEACHER")

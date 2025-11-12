@@ -1,5 +1,7 @@
 package org.example.library.controllers;
 
+import org.example.library.services.MetricsService;
+
 import jakarta.persistence.EntityNotFoundException;
 import org.example.library.exceptions.ForbiddenAccessException;
 import org.example.library.exceptions.ResourceNotFoundException;
@@ -39,6 +41,9 @@ public class BookController {
 
     @Autowired
     private BookService bookService;
+    
+    @Autowired
+    private MetricsService metricsService;
 
     @Autowired
     private AuthorService authorService;
@@ -61,12 +66,18 @@ public class BookController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
+        // Засекаем время начала поиска
+        var searchTimer = metricsService.startBookSearchTimer();
+
         Page<Book> books;
+        String searchType = "general";
 
         if (query != null && !query.isEmpty()) {
             books = bookService.searchBooks(query, page, size);
+            searchType = "query";
         } else {
             books = bookService.getAllBooks(page, size);
+            searchType = "all";
         }
 
         List<Book> filteredBooks = books.getContent();
@@ -75,6 +86,7 @@ public class BookController {
             filteredBooks = filteredBooks.stream()
                     .filter(book -> bookService.calculateAverageRating(book.getBookId()) >= minRating)
                     .toList();
+            searchType = "filtered";
         }
 
         Long currentUserId = customUserDetailsService.getCurrentUser() != null
@@ -86,6 +98,10 @@ public class BookController {
                 .toList();
 
         Page<BookDTO> bookDTOs = new PageImpl<>(dtos, books.getPageable(), filteredBooks.size());
+
+        // Записываем метрики поиска
+        metricsService.recordBookSearch(searchType, dtos.size());
+        metricsService.stopBookSearchTimer(searchTimer, searchType, dtos.size());
 
         return ResponseEntity.ok(bookDTOs);
     }

@@ -5,6 +5,7 @@ org/example/library/controllers/FacultyController$1.class
 org/example/library/exceptions/ResourceNotFoundException.class
 org/example/library/repositories/BookAccessRepository.class
 org/example/library/config/SecurityConfig.class
+org/example/library/config/MetricsInitializer.class
 org/example/library/repositories/BookRatingRepository.class
 org/example/library/services/PhysicalCopyService.class
 org/example/library/repositories/BookRepository.class
@@ -16,12 +17,14 @@ org/example/library/controllers/FacultyController.class
 org/example/library/services/LibrarianService.class
 org/example/library/models/Book.class
 org/example/library/models/Ebook.class
+org/example/library/services/MetricsService.class
 org/example/library/models/RentalRequestStatus.class
 org/example/library/repositories/PhysicalCopyRepository.class
 org/example/library/repositories/RentalRequestRepository.class
 org/example/library/models/DTO/UserRoleUpdateDTO.class
 org/example/library/controllers/ViewController.class
 org/example/library/controllers/AdminController.class
+org/example/library/config/MetricsConfig.class
 org/example/library/models/DTO/UserDTO.class
 org/example/library/models/DTO/UserLoginDTO.class
 org/example/library/controllers/UserController.class
