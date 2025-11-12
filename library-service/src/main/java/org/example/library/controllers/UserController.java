@@ -1,6 +1,6 @@
 package org.example.library.controllers;
 
-import org.example.library.services.MetricsService;
+import org.example.library.monitoring.LibraryMetrics;
 
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.Cookie;
@@ -52,7 +52,7 @@ public class UserController {
     private UserService userService;
     
     @Autowired
-    private MetricsService metricsService;
+    private LibraryMetrics libraryMetrics;
 
     @Autowired
     private BookService bookService;
@@ -77,7 +77,7 @@ public class UserController {
         try {
             LibraryUser  registeredUser  = userService.registerUser (userDto.getUsername(), userDto.getEmail(), userDto.getPassword());
             // Записываем метрику успешной регистрации
-            metricsService.recordUserRegistration("READER");
+            libraryMetrics.recordUserRegistration(userDto.getUsername(), userDto.getEmail(), "READER");
             return ResponseEntity.status(201).body("Пользователь успешно зарегистрирован");
         } catch (UserAlreadyExistsException e) {
             logger.error("Ошибка регистрации: {}", e.getMessage());
@@ -102,7 +102,7 @@ public class UserController {
         if (user == null) {
             logger.error("Пользователь не найден: {}", userLoginDTO.getUsername());
             // Записываем метрику ошибки аутентификации
-            metricsService.recordAuthenticationError("user_not_found", "/api/users/login");
+            libraryMetrics.recordAuthError(userLoginDTO.getUsername(), "user_not_found", "/api/users/login", "unknown");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Пользователь не найден"));
         }
 
@@ -110,7 +110,7 @@ public class UserController {
         if (!passwordMatches) {
             logger.error("Ошибка аутентификации: Неверные учетные данные пользователя");
             // Записываем метрику ошибки аутентификации
-            metricsService.recordAuthenticationError("invalid_password", "/api/users/login");
+            libraryMetrics.recordAuthError(userLoginDTO.getUsername(), "invalid_password", "/api/users/login", "unknown");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Неверные учетные данные"));
         }
 

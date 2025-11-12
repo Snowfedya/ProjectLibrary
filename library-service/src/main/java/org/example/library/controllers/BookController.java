@@ -1,6 +1,6 @@
 package org.example.library.controllers;
 
-import org.example.library.services.MetricsService;
+import org.example.library.monitoring.LibraryMetrics;
 
 import jakarta.persistence.EntityNotFoundException;
 import org.example.library.exceptions.ForbiddenAccessException;
@@ -43,7 +43,7 @@ public class BookController {
     private BookService bookService;
     
     @Autowired
-    private MetricsService metricsService;
+    private LibraryMetrics libraryMetrics;
 
     @Autowired
     private AuthorService authorService;
@@ -67,7 +67,7 @@ public class BookController {
             @RequestParam(defaultValue = "10") int size) {
 
         // Засекаем время начала поиска
-        var searchTimer = metricsService.startBookSearchTimer();
+        var timingContext = libraryMetrics.startTiming();
 
         Page<Book> books;
         String searchType = "general";
@@ -100,8 +100,7 @@ public class BookController {
         Page<BookDTO> bookDTOs = new PageImpl<>(dtos, books.getPageable(), filteredBooks.size());
 
         // Записываем метрики поиска
-        metricsService.recordBookSearch(searchType, dtos.size());
-        metricsService.stopBookSearchTimer(searchTimer, searchType, dtos.size());
+        libraryMetrics.recordBookSearch(query, dtos.size(), timingContext.getDurationMs(), searchType);
 
         return ResponseEntity.ok(bookDTOs);
     }

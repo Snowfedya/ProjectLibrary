@@ -1,1 +1,3 @@
+org/example/library/monitoring/LibraryMetricsTest.class
+org/example/library/monitoring/metrics/BusinessMetricsCollectorTest.class
 org/example/library/LibraryApplicationTests.class
