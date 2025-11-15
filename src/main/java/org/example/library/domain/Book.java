@@ -13,7 +13,7 @@ import lombok.AllArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "books")
+@Table(name = "books", indexes = @jakarta.persistence.Index(name = "idx_book_title", columnList = "title"))
 public class Book extends BaseEntity {
 
     @Column(name = "title", nullable = false, length = 255)
