@@ -1,0 +1,28 @@
+openapi: 3.0.0
+info:
+  title: Library API
+  version: 1.0.0
+  description: API for managing a library
+servers:
+  - url: http://localhost:8080/api/v1
+paths:
+  /books:
+    $ref: './paths/books.yaml'
+  # /authors:
+  #   $ref: './paths/authors.yaml'
+  # /borrowings:
+  #   $ref: './paths/borrowings.yaml'
+  # /reservations:
+  #   $ref: './paths/reservations.yaml'
+components:
+  schemas:
+    Book:
+      $ref: './schemas/Book.yaml'
+    # Author:
+    #   $ref: './schemas/Author.yaml'
+    # Borrowing:
+    #   $ref: './schemas/Borrowing.yaml'
+    # User:
+    #   $ref: './schemas/User.yaml'
+    # Error:
+    #   $ref: './schemas/Error.yaml'

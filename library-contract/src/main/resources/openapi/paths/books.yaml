@@ -1,0 +1,43 @@
+get:
+  summary: List all books
+  operationId: getBooks
+  parameters:
+    - name: page
+      in: query
+      schema:
+        type: integer
+    - name: size
+      in: query
+      schema:
+        type: integer
+  responses:
+    '200':
+      description: List of books
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              _embedded:
+                type: object
+                properties:
+                  books:
+                    type: array
+                    items:
+                      $ref: '../schemas/Book.yaml'
+post:
+  summary: Create new book
+  operationId: createBook
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/Book.yaml'
+  responses:
+    '201':
+      description: Book created
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Book.yaml'
